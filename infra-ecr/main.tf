@@ -48,21 +48,22 @@ resource "aws_ecr_lifecycle_policy" "this" {
       },
       {
         rulePriority = 2
-        description  = "Manter no máximo 10 imagens"
-        selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = 10
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 3
         description  = "Remover imagens sem tag"
         selection = {
           tagStatus   = "untagged"
           countType   = "imageCountMoreThan"
           countNumber = 1
+        }
+        action = { type = "expire" }
+      },
+      {
+        # CORREÇÃO: "any" deve ter sempre o maior número de prioridade (ser a última)
+        rulePriority = 3
+        description  = "Manter no máximo 10 imagens"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = { type = "expire" }
       }
