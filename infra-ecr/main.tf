@@ -37,7 +37,7 @@ resource "aws_ecr_lifecycle_policy" "this" {
     rules = [
       {
         rulePriority = 1
-        description  = "Pular latest"
+        description  = "latest"
         selection = {
           tagStatus     = "tagged"
           tagPrefixList = ["latest"]
@@ -48,18 +48,17 @@ resource "aws_ecr_lifecycle_policy" "this" {
       },
       {
         rulePriority = 2
-        description  = "Manter ultimas 9 imagens com hash"
+        description  = "Manter no máximo 10 imagens"
         selection = {
-          tagStatus      = "tagged"
-          tagPatternList = ["[0-9a-f]{40}"]
-          countType      = "imageCountMoreThan"
-          countNumber    = 9
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = { type = "expire" }
       },
       {
         rulePriority = 3
-        description  = "Expirar imagens não marcadas"
+        description  = "Remover imagens sem tag"
         selection = {
           tagStatus   = "untagged"
           countType   = "imageCountMoreThan"
