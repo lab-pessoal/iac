@@ -57,7 +57,6 @@ resource "aws_ecr_lifecycle_policy" "this" {
         action = { type = "expire" }
       },
       {
-        # CORREÇÃO: "any" deve ter sempre o maior número de prioridade (ser a última)
         rulePriority = 3
         description  = "Manter no máximo 10 imagens"
         selection = {

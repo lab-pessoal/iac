@@ -15,7 +15,9 @@ provider "aws" {
   region = var.aws_region
 }
 
-# ===== NETWORK (default VPC) =====
+# =========================
+# NETWORK (DEFAULT VPC)
+# =========================
 data "aws_vpc" "default" {
   default = true
 }
@@ -27,12 +29,24 @@ data "aws_subnets" "default" {
   }
 }
 
-# ===== ECS CLUSTER =====
+# =========================
+# ECS CLUSTER
+# =========================
 resource "aws_ecs_cluster" "this" {
   name = "${var.app_name}-cluster"
 }
 
-# ===== IAM ROLE (Task Execution) =====
+# =========================
+# CLOUDWATCH LOG GROUP
+# =========================
+resource "aws_cloudwatch_log_group" "ecs" {
+  name              = "/ecs/${var.app_name}"
+  retention_in_days = 7
+}
+
+# =========================
+# IAM ROLE (TASK EXECUTION)
+# =========================
 resource "aws_iam_role" "task_exec" {
   name = "${var.app_name}-task-exec"
 
@@ -40,7 +54,9 @@ resource "aws_iam_role" "task_exec" {
     Version = "2012-10-17"
     Statement = [{
       Effect = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Principal = {
+        Service = "ecs-tasks.amazonaws.com"
+      }
       Action = "sts:AssumeRole"
     }]
   })
@@ -51,7 +67,9 @@ resource "aws_iam_role_policy_attachment" "task_exec" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ===== TASK DEFINITION (SHA) =====
+# =========================
+# TASK DEFINITION (SHA)
+# =========================
 resource "aws_ecs_task_definition" "this" {
   family                   = var.app_name
   network_mode             = "awsvpc"
@@ -73,12 +91,32 @@ resource "aws_ecs_task_definition" "this" {
         }
       ]
 
+      environment = [
+        {
+          name  = "PORT"
+          value = tostring(var.container_port)
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = "/ecs/${var.app_name}"
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
+        }
+      }
+
       essential = true
     }
   ])
+
+  depends_on = [aws_cloudwatch_log_group.ecs]
 }
 
-# ===== ALB =====
+# =========================
+# ALB SECURITY GROUP
+# =========================
 resource "aws_security_group" "alb" {
   name   = "${var.app_name}-alb-sg"
   vpc_id = data.aws_vpc.default.id
@@ -98,6 +136,9 @@ resource "aws_security_group" "alb" {
   }
 }
 
+# =========================
+# APPLICATION LOAD BALANCER
+# =========================
 resource "aws_lb" "this" {
   name               = "${var.app_name}-alb"
   load_balancer_type = "application"
@@ -113,7 +154,12 @@ resource "aws_lb_target_group" "this" {
   target_type = "ip"
 
   health_check {
-    path = "/"
+    path                = "/health"
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 5
+    interval            = 30
+    matcher             = "200"
   }
 }
 
@@ -128,7 +174,9 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# ===== ECS SERVICE =====
+# =========================
+# ECS SECURITY GROUP
+# =========================
 resource "aws_security_group" "ecs" {
   name   = "${var.app_name}-ecs-sg"
   vpc_id = data.aws_vpc.default.id
@@ -148,6 +196,9 @@ resource "aws_security_group" "ecs" {
   }
 }
 
+# =========================
+# ECS SERVICE
+# =========================
 resource "aws_ecs_service" "this" {
   name            = var.app_name
   cluster         = aws_ecs_cluster.this.id
